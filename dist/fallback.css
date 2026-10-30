@@ -1,0 +1,3 @@
+.project-dialog:not([open]):not(.fallback-open){display:none}
+.project-dialog.fallback-open{display:block;position:fixed;z-index:200;inset:50% auto auto 50%;transform:translate(-50%,-50%);max-height:calc(100vh - 32px);overflow:auto}
+.project-dialog.fallback-open:before{content:"";position:fixed;z-index:-1;inset:-100vh -100vw;background:rgba(11,24,20,.72)}
