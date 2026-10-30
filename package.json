@@ -1,0 +1,14 @@
+{
+  "name": "construmatch",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=23.6.0" },
+  "scripts": {
+    "start": "node --env-file=.env server/src/app.ts",
+    "test": "node --test server/test/*.test.ts"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "pg": "^8.13.1"
+  }
+}
