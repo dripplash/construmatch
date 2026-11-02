@@ -9,6 +9,7 @@ export const config = Object.freeze({
   port: Number(process.env.PORT ?? 3000),
   appOrigin: required("APP_ORIGIN"),
   databaseUrl: required("DATABASE_URL"),
+  databaseSsl: process.env.DATABASE_SSL ?? "require",
   sessionDays: Number(process.env.SESSION_DAYS ?? 7),
   trustProxy: Number(process.env.TRUST_PROXY ?? 0),
 });

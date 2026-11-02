@@ -5,7 +5,7 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: config.databaseUrl,
-  ssl: isProduction ? { rejectUnauthorized: true } : false,
+  ssl: isProduction && config.databaseSsl !== "disable" ? { rejectUnauthorized: true } : false,
   max: 12,
   idleTimeoutMillis: 30_000,
   connectionTimeoutMillis: 5_000,
