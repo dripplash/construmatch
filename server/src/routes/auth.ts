@@ -12,6 +12,24 @@ export const authRouter = Router();
 const dummyHash = hashPassword("not-a-real-password-123");
 const neutralLoginError = () => new HttpError(401, "Correo o contraseña incorrectos.", "invalid_credentials");
 
+authRouter.get("/me", requireUser, async (request, response, next) => {
+  try {
+    const result = await pool.query(
+      `SELECT id, display_name, role, verification_status
+         FROM users WHERE id = $1`,
+      [request.user!.id],
+    );
+    const user = result.rows[0];
+    if (!user) throw new HttpError(401, "Sesión inválida.", "invalid_session");
+    response.json({
+      id: user.id,
+      displayName: user.display_name,
+      role: user.role,
+      verificationStatus: user.verification_status,
+    });
+  } catch (error) { next(error); }
+});
+
 function normalizeEmail(value: unknown): string {
   const email = text(value, 254).toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new HttpError(400, "Datos inválidos.");
@@ -74,7 +92,8 @@ authRouter.post("/login", async (request, response, next) => {
       );
     });
     response.setHeader("Set-Cookie", sessionCookie(rawToken, maxAge));
-    response.json({ id: user.id, role: user.role, verificationStatus: user.verification_status });
+    const profile = await pool.query(`SELECT display_name FROM users WHERE id = $1`, [user.id]);
+    response.json({ id: user.id, displayName: profile.rows[0]?.display_name, role: user.role, verificationStatus: user.verification_status });
   } catch (error) { next(error); }
 });
 

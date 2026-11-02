@@ -25,8 +25,8 @@ const closeModal=element=>supportsDialog?element.close():element.classList.remov
 const toast=document.querySelector('#toast');
 const showToast=(title,copy)=>{toast.querySelector('b').textContent=title;toast.querySelector('.toast-copy').textContent=copy;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3900)};
 
-// Demo-only session state. The production API enforces the same role and verification checks server-side.
-const session={role:null,verified:false};
+const API_BASE=(window.CONSTRUMATCH_API_URL||'').replace(/\/$/,'');
+const session={id:null,role:null,verified:false,displayName:null};
 let pendingAction=null;
 const authContext=document.querySelector('#authContext');
 const accountStatus=document.querySelector('#accountStatus');
@@ -59,16 +59,16 @@ function openAuth(mode='login',role=null,message='Accede para continuar en Const
   selectAuthTab(mode);
   if(role){
     selectRegisterRole(role);
-    loginForm.elements.role.value=role;
   }
   openModal(authDialog);
 }
 
 function updateAccountStatus(){
-  document.querySelector('.auth-actions .login-link').hidden=true;
-  document.querySelector('.auth-actions .button').hidden=true;
-  accountStatus.hidden=false;
-  accountStatus.textContent=session.verified?`${session.role==='client'?'Cliente':'Empresa'} · verificada`:'Validación pendiente';
+  const loggedIn=Boolean(session.id);
+  document.querySelector('.auth-actions .login-link').hidden=loggedIn;
+  document.querySelector('.auth-actions .button').hidden=loggedIn;
+  accountStatus.hidden=!loggedIn;
+  if(loggedIn)accountStatus.textContent=session.verified?`${session.role==='client'?'Cliente':'Empresa'} · verificada`:`${session.displayName||'Cuenta'} · pendiente`;
 }
 
 function requireVerifiedRole(role,action){
@@ -89,31 +89,85 @@ authDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModa
 projectDialog.querySelector('.dialog-close').addEventListener('click',event=>{event.preventDefault();closeModal(projectDialog)});
 
 document.querySelectorAll('[data-open-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('client',()=>openModal(projectDialog))));
-document.querySelectorAll('[data-quote-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('company',()=>showToast('Cotización habilitada',`Puedes preparar una propuesta para ${button.dataset.quoteProject}.`))));
+document.querySelectorAll('[data-quote-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('company',()=>openQuoteDialog(button.dataset.projectId,button.dataset.quoteProject))));
 
-loginForm.addEventListener('submit',event=>{
+async function api(path,options={}){
+  const headers={Accept:'application/json',...(options.body?{'Content-Type':'application/json'}:{}),...options.headers};
+  const response=await fetch(`${API_BASE}${path}`,{credentials:'include',...options,headers});
+  if(response.status===204)return null;
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){const error=new Error(data.message||'No fue posible completar la operación.');error.code=data.error;error.status=response.status;throw error}
+  return data;
+}
+
+function setSession(user){
+  session.id=user?.id||null;
+  session.role=user?.role||null;
+  session.verified=user?.verificationStatus==='verified';
+  session.displayName=user?.displayName||null;
+  updateAccountStatus();
+}
+
+function setSubmitting(form,busy){
+  const button=form.querySelector('[type="submit"]');
+  if(button){button.disabled=busy;button.dataset.label||=button.innerHTML;button.innerHTML=busy?'Procesando…':button.dataset.label}
+}
+
+function formPayload(form){return Object.fromEntries(new FormData(form).entries())}
+
+loginForm.addEventListener('submit',async event=>{
   event.preventDefault();
   if(!loginForm.checkValidity())return loginForm.reportValidity();
-  session.role=loginForm.elements.role.value;
-  session.verified=true;
-  closeModal(authDialog);
-  updateAccountStatus();
-  showToast('Cuenta verificada',`Ingresaste como ${session.role==='client'?'cliente':'empresa'} con ticket activo.`);
-  const action=pendingAction; pendingAction=null; if(action)setTimeout(action,250);
+  setSubmitting(loginForm,true);
+  try{
+    const user=await api('/api/auth/login',{method:'POST',body:JSON.stringify(formPayload(loginForm))});
+    setSession(user);closeModal(authDialog);loginForm.reset();
+    showToast('Sesión iniciada',session.verified?'Tu ticket de verificación está activo.':'Tu cuenta sigue pendiente de validación.');
+    const action=pendingAction;pendingAction=null;if(action&&session.verified)setTimeout(action,250);
+  }catch(error){showToast('No pudimos ingresar',error.message)}finally{setSubmitting(loginForm,false)}
 });
 
-registerForm.addEventListener('submit',event=>{
+registerForm.addEventListener('submit',async event=>{
   event.preventDefault();
   if(!registerForm.checkValidity())return registerForm.reportValidity();
-  session.role=registerForm.elements.role.value;
-  session.verified=false;
-  pendingAction=null;
-  closeModal(authDialog);
-  updateAccountStatus();
-  showToast('Solicitud enviada','Tu cuenta quedó pendiente. Te avisaremos cuando la revisión termine.');
+  setSubmitting(registerForm,true);
+  const payload=formPayload(registerForm);
+  try{
+    await api('/api/auth/register',{method:'POST',body:JSON.stringify(payload)});
+    const user=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:payload.email,password:payload.password})});
+    setSession(user);pendingAction=null;closeModal(authDialog);registerForm.reset();selectRegisterRole('client');
+    showToast('Cuenta creada','Tu cuenta quedó pendiente hasta completar la verificación.');
+  }catch(error){showToast('No pudimos crear la cuenta',error.message)}finally{setSubmitting(registerForm,false)}
 });
 
-document.querySelector('#projectForm').addEventListener('submit',event=>{event.preventDefault();if(!event.currentTarget.checkValidity())return event.currentTarget.reportValidity();closeModal(projectDialog);event.currentTarget.reset();showToast('Proyecto publicado','Tu proyecto ya puede recibir propuestas de empresas habilitadas.')});
+document.querySelector('#projectForm').addEventListener('submit',async event=>{
+  event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);
+  const payload=formPayload(form);payload.title=payload.name;delete payload.name;payload.budgetMin=Number(payload.budgetMin);payload.budgetMax=Number(payload.budgetMax);
+  try{await api('/api/projects',{method:'POST',body:JSON.stringify(payload)});closeModal(projectDialog);form.reset();showToast('Proyecto publicado','Ya puede recibir propuestas de empresas habilitadas.');await loadProjects()}
+  catch(error){showToast('No pudimos publicar',error.message)}finally{setSubmitting(form,false)}
+});
 document.querySelector('.recover-link').addEventListener('click',event=>{event.preventDefault();showToast('Recuperación segura','Te enviaremos un enlace de un solo uso con vigencia de una hora.')});
 document.querySelectorAll('[data-quote]').forEach(button=>button.addEventListener('click',()=>showToast(button.dataset.quote,'Detalle de cotización disponible en la vista de cliente.')));
 document.querySelectorAll('[data-company]').forEach(button=>button.addEventListener('click',()=>showToast(button.dataset.company,'Perfil, especialidades, ticket y portafolio disponibles en esta vista.')));
+
+const quoteDialog=document.createElement('dialog');
+quoteDialog.className='project-dialog';
+quoteDialog.innerHTML='<form id="quoteForm"><button class="dialog-close" type="button" aria-label="Cerrar">×</button><p class="eyebrow"><span>+</span> Nueva cotización</p><h2>Prepara una propuesta comparable.</h2><input type="hidden" name="projectId"><div class="form-grid"><label>Monto total<input required type="number" min="1" inputmode="numeric" name="amount"></label><label>Duración estimada (días)<input required type="number" min="1" max="3650" inputmode="numeric" name="durationDays"></label><label class="full">Alcance<textarea required maxlength="6000" rows="6" name="scope" placeholder="Incluye partidas, exclusiones y condiciones"></textarea></label></div><button class="button button-primary full-button" type="submit">Enviar cotización <span>↗</span></button></form>';
+document.body.append(quoteDialog);
+quoteDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(quoteDialog));
+function openQuoteDialog(projectId,title){if(!projectId)return showToast('Proyecto de muestra','Las cotizaciones reales aparecerán cuando la API esté conectada.');quoteDialog.querySelector('[name="projectId"]').value=projectId;quoteDialog.querySelector('h2').textContent=`Cotizar: ${title}`;openModal(quoteDialog)}
+quoteDialog.querySelector('form').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);const payload=formPayload(form);const projectId=payload.projectId;delete payload.projectId;payload.amount=Number(payload.amount);payload.durationDays=Number(payload.durationDays);try{await api(`/api/projects/${encodeURIComponent(projectId)}/quotes`,{method:'POST',body:JSON.stringify(payload)});closeModal(quoteDialog);form.reset();showToast('Cotización enviada','El cliente ya puede comparar tu propuesta.')}catch(error){showToast('No pudimos cotizar',error.message)}finally{setSubmitting(form,false)}});
+
+const money=value=>new Intl.NumberFormat('es-CL',{style:'currency',currency:'CLP',maximumFractionDigits:0}).format(Number(value));
+async function loadProjects(){
+  try{
+    const projects=await api('/api/projects');if(!Array.isArray(projects)||!projects.length)return;
+    document.querySelector('.project-list').innerHTML=projects.map((project,index)=>`<article class="listing visible" data-category="${String(project.category).toLowerCase()}"><div class="listing-no">${String(index+1).padStart(2,'0')}</div><div class="listing-main"><span>${project.category} · ${project.commune}</span><h3>${escapeHtml(project.title)}</h3></div><div class="listing-meta"><small>Presupuesto</small><strong>${money(project.budget_min)}–${money(project.budget_max)}</strong></div><div class="listing-meta"><small>Estado</small><strong>Abierto</strong></div><button class="listing-action quote-action" data-project-id="${project.id}">Cotizar ↗</button></article>`).join('');
+    document.querySelectorAll('.project-list .quote-action').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('company',()=>openQuoteDialog(button.dataset.projectId,button.closest('.listing').querySelector('h3').textContent))));
+  }catch(error){console.info('API de proyectos aún no disponible:',error.message)}
+}
+function escapeHtml(value){const element=document.createElement('span');element.textContent=String(value);return element.innerHTML}
+
+accountStatus.addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST'});setSession(null);showToast('Sesión cerrada','Tu sesión se cerró en este dispositivo.')}catch(error){showToast('No pudimos cerrar sesión',error.message)}});
+api('/api/auth/me').then(setSession).catch(()=>setSession(null));
+loadProjects();
