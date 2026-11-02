@@ -1,20 +1,75 @@
 <!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="theme-color" content="#123d34">
   <title>Administración — ConstruMatch</title>
-  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="production.css"><link rel="stylesheet" href="admin.css"><script defer src="admin.js"></script>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="production.css">
+  <link rel="stylesheet" href="admin.css">
+  <script defer src="admin.js"></script>
 </head>
 <body class="admin-page">
-  <header><a class="brand" href="index.html">Constru<em>Match</em></a><span>Administración segura</span></header>
-  <main>
-    <section id="adminLogin"><p class="eyebrow"><span>CM</span> Acceso restringido</p><h1>Revisión de cuentas.</h1><form id="adminLoginForm"><label>Correo<input required type="email" name="email" autocomplete="email"></label><label>Contraseña<input required type="password" name="password" autocomplete="current-password"></label><button class="button button-primary" type="submit">Ingresar</button></form></section>
-    <section id="reviewPanel" hidden>
-      <div class="admin-heading"><div><p class="eyebrow"><span>✓</span> Solicitudes pendientes</p><h1>Validación de participantes.</h1></div><div><button id="securityButton" type="button">Seguridad</button> <button id="refreshButton" type="button">Actualizar</button></div></div>
-      <form id="adminPasswordForm" hidden><label>Contraseña actual<input required type="password" name="currentPassword" autocomplete="current-password"></label><label>Nueva contraseña<input required minlength="12" type="password" name="newPassword" autocomplete="new-password"></label><button class="button button-primary" type="submit">Cambiar contraseña y cerrar sesiones</button></form>
-      <div id="verificationList" class="verification-list"></div>
+  <header class="admin-header">
+    <a class="admin-brand" href="index.html" aria-label="Volver a ConstruMatch">Constru<em>Match</em></a>
+    <div class="admin-context"><span class="status-dot"></span><span>Administración protegida</span></div>
+  </header>
+
+  <main class="admin-main">
+    <section class="login-layout" id="adminLogin">
+      <div class="login-intro">
+        <p class="eyebrow"><span>CM</span> Acceso restringido</p>
+        <h1>Control serio.<br>Decisiones trazables.</h1>
+        <p>Este espacio es exclusivo para la revisión de participantes. Cada decisión exige un motivo y queda registrada en la bitácora.</p>
+      </div>
+      <form class="login-card" id="adminLoginForm">
+        <div class="card-index">01 / ACCESO</div>
+        <h2>Ingresar al panel</h2>
+        <label>Correo administrativo<input required type="email" name="email" autocomplete="email" placeholder="nombre@correo.cl"></label>
+        <label>Contraseña<input required type="password" name="password" autocomplete="current-password" placeholder="••••••••••••"></label>
+        <button class="admin-primary" type="submit">Ingresar de forma segura <span>↗</span></button>
+        <small>La sesión se almacena en una cookie segura y no es accesible desde JavaScript.</small>
+      </form>
     </section>
-    <div class="toast" id="toast" role="status" aria-live="polite"><span>✓</span><p><b>Listo</b><span class="toast-copy"></span></p></div>
+
+    <section id="reviewPanel" hidden>
+      <div class="dashboard-top">
+        <div>
+          <p class="eyebrow"><span>✓</span> Revisión de identidad</p>
+          <h1>Validación de<br>participantes.</h1>
+        </div>
+        <div class="dashboard-actions">
+          <button class="admin-secondary" id="securityButton" type="button">Seguridad</button>
+          <button class="admin-secondary" id="refreshButton" type="button">Actualizar</button>
+          <button class="admin-quiet" id="logoutButton" type="button">Cerrar sesión</button>
+        </div>
+      </div>
+
+      <div class="dashboard-summary" aria-live="polite">
+        <div><strong id="pendingCount">—</strong><span>Solicitudes pendientes</span></div>
+        <div><strong>Manual</strong><span>Tipo de revisión</span></div>
+        <div><strong>Auditado</strong><span>Registro de decisiones</span></div>
+      </div>
+
+      <div class="list-heading"><span>Cola de revisión</span><span id="lastUpdated">Sin actualizar</span></div>
+      <div id="verificationList" class="verification-list"><div class="loading-state"><span></span><p>Cargando solicitudes…</p></div></div>
+    </section>
   </main>
+
+  <dialog class="security-dialog" id="securityDialog">
+    <form id="adminPasswordForm">
+      <button class="dialog-close" id="closeSecurityButton" type="button" aria-label="Cerrar">×</button>
+      <p class="eyebrow"><span>⌁</span> Seguridad de la cuenta</p>
+      <h2>Cambiar contraseña</h2>
+      <p class="security-copy">Al guardar, se cerrarán todas las sesiones administrativas abiertas.</p>
+      <label>Contraseña actual<input required type="password" name="currentPassword" autocomplete="current-password"></label>
+      <label>Nueva contraseña<input required minlength="12" type="password" name="newPassword" autocomplete="new-password"><small>Mínimo 12 caracteres. No reutilices una contraseña de otro servicio.</small></label>
+      <button class="admin-primary" type="submit">Cambiar y cerrar sesiones <span>↗</span></button>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"><span>✓</span><p><b>Listo</b><span class="toast-copy"></span></p></div>
 </body>
 </html>
