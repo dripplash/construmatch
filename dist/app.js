@@ -129,7 +129,9 @@ loginForm.addEventListener('submit',async event=>{
     const user=await api('/api/auth/login',{method:'POST',body:JSON.stringify(formPayload(loginForm))});
     setSession(user);closeModal(authDialog);loginForm.reset();
     showToast('Sesión iniciada',session.verified?'Tu ticket de verificación está activo.':'Tu cuenta sigue pendiente de validación.');
-    const action=pendingAction;pendingAction=null;if(action&&session.verified)setTimeout(action,250);
+    const action=pendingAction;pendingAction=null;
+    if(action&&session.verified)setTimeout(action,250);
+    else setTimeout(openAccountArea,250);
   }catch(error){showToast('No pudimos ingresar',error.message)}finally{setSubmitting(loginForm,false)}
 });
 
