@@ -174,11 +174,19 @@ async function loadProjects(){
   }catch(error){document.querySelector('.project-list').innerHTML='<div class="marketplace-state error-state">No pudimos cargar los proyectos. Intenta actualizar la página.</div>'}
 }
 function escapeHtml(value){const element=document.createElement('span');element.textContent=String(value);return element.innerHTML}
+const escapeAttribute=value=>escapeHtml(value).replaceAll('"','&quot;').replaceAll("'",'&#39;');
 
 async function loadCompanies(){
   try{
     const companies=await api('/api/companies');const grid=document.querySelector('.company-grid');
-    grid.innerHTML=Array.isArray(companies)&&companies.length?companies.map(company=>`<article class="company-card visible"><div class="company-monogram">${escapeHtml(company.display_name.split(/\s+/).slice(0,2).map(word=>word[0]).join('').toUpperCase())}</div><div><span class="availability"><i></i> ${company.role==='professional'?'Profesional independiente':'Empresa habilitada'}</span><h3>${escapeHtml(company.display_name)}</h3><p>Identidad y antecedentes básicos revisados por ConstruMatch.</p><div class="company-meta"><span>Ticket activo</span><b>Verificada</b></div></div></article>`).join(''):'<div class="marketplace-state light-state">Aún no hay prestadores habilitados para mostrar.</div>';
+    grid.innerHTML=Array.isArray(companies)&&companies.length?companies.map(company=>{
+      const initials=company.display_name.split(/\s+/).slice(0,2).map(word=>word[0]).join('').toUpperCase();
+      const portrait=company.logo_url?`<img class="company-logo" src="${escapeAttribute(company.logo_url)}" alt="Logo de ${escapeAttribute(company.display_name)}">`:`<div class="company-monogram">${escapeHtml(initials)}</div>`;
+      const details=[company.specialties,company.commune].filter(Boolean).map(escapeHtml).join(' · ');
+      const contact=company.phone||company.public_email?`<div class="company-contact">${company.phone?`<span>${escapeHtml(company.phone)}</span>`:''}${company.public_email?`<span>${escapeHtml(company.public_email)}</span>`:''}</div>`:'';
+      const website=company.website?`<a class="company-website" href="${escapeAttribute(company.website)}" target="_blank" rel="noopener noreferrer">Visitar sitio web ↗</a>`:'';
+      return `<article class="company-card visible">${portrait}<div><span class="availability"><i></i> ${company.role==='professional'?'Profesional independiente':'Empresa habilitada'}</span><h3>${escapeHtml(company.display_name)}</h3><p>${escapeHtml(company.description||'Identidad y antecedentes básicos revisados por ConstruMatch.')}</p>${details?`<div class="company-details">${details}</div>`:''}${contact}${website}<div class="company-meta"><span>Ticket activo</span><b>Verificada</b></div></div></article>`;
+    }).join(''):'<div class="marketplace-state light-state">Aún no hay prestadores habilitados para mostrar.</div>';
   }catch{document.querySelector('.company-grid').innerHTML='<div class="marketplace-state light-state">No pudimos cargar el directorio.</div>'}
 }
 

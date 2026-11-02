@@ -10,6 +10,7 @@ import { uploadRouter } from "./routes/uploads.ts";
 import { migrateDatabase } from "./migrate.ts";
 import { bootstrapAdmin } from "./bootstrap.ts";
 import { adminRouter } from "./routes/admin.ts";
+import { profilesRouter } from "./routes/profiles.ts";
 
 const app = express();
 app.disable("x-powered-by");
@@ -28,6 +29,7 @@ app.get("/health", async (_request, response, next) => {
 });
 app.use("/api/auth", authRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api", profilesRouter);
 app.use("/api", marketplaceRouter);
 app.use((_request, response) => response.status(404).json({ error: "not_found", message: "Recurso no encontrado." }));
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => sendError(response, error));

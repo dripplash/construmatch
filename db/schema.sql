@@ -119,6 +119,19 @@ CREATE TABLE project_uploads (
   PRIMARY KEY (project_id, upload_id)
 );
 
+CREATE TABLE provider_profiles (
+  user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  phone text,
+  public_email text,
+  commune text,
+  specialties text,
+  description text,
+  website text,
+  logo_upload_id uuid REFERENCES uploads(id) ON DELETE SET NULL,
+  show_contact boolean NOT NULL DEFAULT true,
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
 CREATE TABLE moderation_reports (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   reporter_user_id uuid NOT NULL REFERENCES users(id),

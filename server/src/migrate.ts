@@ -7,6 +7,7 @@ const migrations = [
   ["002_accounts_and_moderation", "../../db/002_accounts_and_moderation.sql"],
   ["003_project_uploads", "../../db/003_project_uploads.sql"],
   ["004_cleanup_qa", "../../db/004_cleanup_qa.sql"],
+  ["005_provider_profiles", "../../db/005_provider_profiles.sql"],
 ] as const;
 
 export async function migrateDatabase(): Promise<void> {

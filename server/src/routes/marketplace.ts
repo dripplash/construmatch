@@ -86,9 +86,14 @@ marketplaceRouter.get("/projects", async (_request, response, next) => {
 marketplaceRouter.get("/companies", async (_request, response, next) => {
   try {
     const result = await pool.query(
-      `SELECT id, display_name, role, created_at FROM users
-        WHERE role IN ('company', 'professional') AND verification_status = 'verified'
-        ORDER BY created_at DESC LIMIT 50`,
+      `SELECT u.id, u.display_name, u.role, u.created_at, p.commune, p.specialties, p.description, p.website,
+              CASE WHEN p.show_contact THEN p.phone END AS phone,
+              CASE WHEN p.show_contact THEN p.public_email END AS public_email,
+              CASE WHEN p.logo_upload_id IS NOT NULL THEN '/api/providers/' || u.id || '/logo' END AS logo_url
+         FROM users u
+         LEFT JOIN provider_profiles p ON p.user_id = u.id
+        WHERE u.role IN ('company', 'professional') AND u.verification_status = 'verified'
+        ORDER BY u.created_at DESC LIMIT 50`,
     );
     response.json(result.rows);
   } catch (error) { next(error); }

@@ -23,7 +23,7 @@ uploadRouter.post("/", requireUser, requireVerified, raw({ type: [...allowed.key
     if (!Buffer.isBuffer(body) || !matchesMagic(body, mime)) throw new HttpError(415, "Formato de imagen no permitido.", "invalid_image");
     const storageKey = `${request.user!.id}/${randomUUID()}`;
     const checksum = createHash("sha256").update(body).digest("hex");
-    await pool.query(`INSERT INTO uploads (user_id, storage_key, mime_type, size_bytes, checksum, data) VALUES ($1, $2, $3, $4, $5, $6)`, [request.user!.id, storageKey, mime, body.length, checksum, body]);
-    response.status(201).json({ key: storageKey, mime, size: body.length, checksum });
+    const inserted = await pool.query(`INSERT INTO uploads (user_id, storage_key, mime_type, size_bytes, checksum, data) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`, [request.user!.id, storageKey, mime, body.length, checksum, body]);
+    response.status(201).json({ id: inserted.rows[0].id, key: storageKey, mime, size: body.length, checksum });
   } catch (error) { next(error); }
 });
