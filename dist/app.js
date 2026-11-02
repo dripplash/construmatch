@@ -86,7 +86,7 @@ document.querySelectorAll('[data-auth-open]').forEach(button=>button.addEventLis
   const role=button.dataset.registerRole||null;
   openAuth(button.dataset.authOpen,role);
 }));
-document.querySelectorAll('[data-login]').forEach(button=>button.addEventListener('click',()=>openAuth('login')));
+document.querySelectorAll('[data-login]').forEach(button=>button.addEventListener('click',()=>openAccountArea()));
 document.querySelectorAll('[data-auth-tab]').forEach(button=>button.addEventListener('click',()=>selectAuthTab(button.dataset.authTab)));
 document.querySelectorAll('[data-role-choice]').forEach(button=>button.addEventListener('click',()=>selectRegisterRole(button.dataset.roleChoice)));
 authDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(authDialog));
@@ -182,7 +182,18 @@ async function loadCompanies(){
   }catch{document.querySelector('.company-grid').innerHTML='<div class="marketplace-state light-state">No pudimos cargar el directorio.</div>'}
 }
 
-accountStatus.addEventListener('click',()=>{if(session.role==='admin')return location.href='admin.html';if(!session.verified){const input=document.querySelector('#verificationForm [name="registrationReference"]');input.required=session.role==='company';document.querySelector('#registrationReferenceLabel').hidden=session.role==='client';openModal(verificationDialog)}else location.href='dashboard.html'});
+function openAccountArea(){
+  if(!session.id)return openAuth('login');
+  if(session.role==='admin')return location.href='admin.html';
+  if(!session.verified){
+    const input=document.querySelector('#verificationForm [name="registrationReference"]');
+    input.required=session.role==='company';
+    document.querySelector('#registrationReferenceLabel').hidden=session.role==='client';
+    return openModal(verificationDialog);
+  }
+  location.href='dashboard.html';
+}
+accountStatus.addEventListener('click',openAccountArea);
 document.querySelector('#verificationForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);try{await api('/api/auth/verification',{method:'POST',body:JSON.stringify(formPayload(form))});closeModal(verificationDialog);form.reset();showToast('Solicitud enviada','Administración revisará tus antecedentes y dejará registro de la decisión.')}catch(error){showToast('No pudimos enviar la solicitud',error.message)}finally{setSubmitting(form,false)}});
 document.querySelector('#logoutButton').addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST'});setSession(null);closeModal(verificationDialog);showToast('Sesión cerrada','Tu sesión se cerró en este dispositivo.')}catch(error){showToast('No pudimos cerrar sesión',error.message)}});
 document.querySelector('#changePasswordButton').addEventListener('click',()=>{closeModal(verificationDialog);openModal(passwordDialog)});
