@@ -19,6 +19,7 @@ document.querySelectorAll('.risk-item').forEach(item=>item.addEventListener('cli
 
 const projectDialog=document.querySelector('#projectDialog');
 const authDialog=document.querySelector('#authDialog');
+const verificationDialog=document.querySelector('#verificationDialog');
 const supportsDialog=typeof HTMLDialogElement!=='undefined'&&typeof projectDialog.showModal==='function';
 const openModal=element=>supportsDialog?element.showModal():element.classList.add('fallback-open');
 const closeModal=element=>supportsDialog?element.close():element.classList.remove('fallback-open');
@@ -87,6 +88,7 @@ document.querySelectorAll('[data-auth-tab]').forEach(button=>button.addEventList
 document.querySelectorAll('[data-role-choice]').forEach(button=>button.addEventListener('click',()=>selectRegisterRole(button.dataset.roleChoice)));
 authDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(authDialog));
 projectDialog.querySelector('.dialog-close').addEventListener('click',event=>{event.preventDefault();closeModal(projectDialog)});
+verificationDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(verificationDialog));
 
 document.querySelectorAll('[data-open-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('client',()=>openModal(projectDialog))));
 document.querySelectorAll('[data-quote-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('company',()=>openQuoteDialog(button.dataset.projectId,button.dataset.quoteProject))));
@@ -137,6 +139,7 @@ registerForm.addEventListener('submit',async event=>{
     const user=await api('/api/auth/login',{method:'POST',body:JSON.stringify({email:payload.email,password:payload.password})});
     setSession(user);pendingAction=null;closeModal(authDialog);registerForm.reset();selectRegisterRole('client');
     showToast('Cuenta creada','Tu cuenta quedó pendiente hasta completar la verificación.');
+    setTimeout(()=>openModal(verificationDialog),250);
   }catch(error){showToast('No pudimos crear la cuenta',error.message)}finally{setSubmitting(registerForm,false)}
 });
 
@@ -168,6 +171,8 @@ async function loadProjects(){
 }
 function escapeHtml(value){const element=document.createElement('span');element.textContent=String(value);return element.innerHTML}
 
-accountStatus.addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST'});setSession(null);showToast('Sesión cerrada','Tu sesión se cerró en este dispositivo.')}catch(error){showToast('No pudimos cerrar sesión',error.message)}});
+accountStatus.addEventListener('click',()=>{if(session.role==='admin')location.href='admin.html';else if(!session.verified)openModal(verificationDialog);else showToast('Cuenta verificada','Tu ticket está activo y puedes utilizar las funciones de tu perfil.')});
+document.querySelector('#verificationForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);try{await api('/api/auth/verification',{method:'POST',body:JSON.stringify(formPayload(form))});closeModal(verificationDialog);form.reset();showToast('Solicitud enviada','Administración revisará tus antecedentes y dejará registro de la decisión.')}catch(error){showToast('No pudimos enviar la solicitud',error.message)}finally{setSubmitting(form,false)}});
+document.querySelector('#logoutButton').addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST'});setSession(null);closeModal(verificationDialog);showToast('Sesión cerrada','Tu sesión se cerró en este dispositivo.')}catch(error){showToast('No pudimos cerrar sesión',error.message)}});
 api('/api/auth/me').then(setSession).catch(()=>setSession(null));
 loadProjects();
