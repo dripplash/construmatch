@@ -2,8 +2,14 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "construmatch",
   "compatibility_date": "2026-10-30",
+  "main": "worker/src/index.ts",
+  "vars": {
+    "API_ORIGIN": "https://construmatch-api.onrender.com"
+  },
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/health"]
   }
 }

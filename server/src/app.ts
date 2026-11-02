@@ -7,6 +7,7 @@ import { requireSameOrigin, securityHeaders } from "./security/requests.ts";
 import { authRouter } from "./routes/auth.ts";
 import { marketplaceRouter } from "./routes/marketplace.ts";
 import { uploadRouter } from "./routes/uploads.ts";
+import { migrateDatabase } from "./migrate.ts";
 
 const app = express();
 app.disable("x-powered-by");
@@ -28,7 +29,8 @@ app.use("/api", marketplaceRouter);
 app.use((_request, response) => response.status(404).json({ error: "not_found", message: "Recurso no encontrado." }));
 app.use((error: unknown, _request: express.Request, response: express.Response, _next: express.NextFunction) => sendError(response, error));
 
-const server = app.listen(config.port, () => console.log(`ConstruMatch API listening on ${config.port}`));
+await migrateDatabase();
+const server = app.listen(config.port, "0.0.0.0", () => console.log(`ConstruMatch API listening on ${config.port}`));
 
 async function shutdown(): Promise<void> {
   server.close(async () => {

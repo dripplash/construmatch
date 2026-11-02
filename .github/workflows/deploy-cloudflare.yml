@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "dist/**"
+      - "worker/**"
       - "wrangler.jsonc"
 
 jobs:

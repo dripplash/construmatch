@@ -5,6 +5,8 @@
   "engines": { "node": ">=23.6.0" },
   "scripts": {
     "start": "node --env-file=.env server/src/app.ts",
+    "start:render": "node server/src/app.ts",
+    "migrate": "node --env-file=.env server/src/migrate.ts",
     "test": "node --test server/test/*.test.ts"
   },
   "dependencies": {
