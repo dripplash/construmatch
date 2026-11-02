@@ -6,7 +6,7 @@ import { hashToken } from "../security/tokens.ts";
 
 declare global {
   namespace Express {
-    interface Request { user?: { id: string; role: "client" | "company" | "admin"; verificationStatus: string } }
+    interface Request { user?: { id: string; role: "client" | "company" | "professional" | "admin"; verificationStatus: string } }
   }
 }
 
@@ -31,9 +31,16 @@ export function requireUser(request: Request, _response: Response, next: NextFun
   next();
 }
 
-export function requireRole(role: "client" | "company" | "admin") {
+export function requireRole(role: "client" | "company" | "professional" | "admin") {
   return (request: Request, _response: Response, next: NextFunction): void => {
     if (request.user?.role !== role) return next(new HttpError(403, "Esta cuenta no tiene el rol requerido.", "role_required"));
+    next();
+  };
+}
+
+export function requireAnyRole(...roles: Array<"client" | "company" | "professional" | "admin">) {
+  return (request: Request, _response: Response, next: NextFunction): void => {
+    if (!request.user || !roles.includes(request.user.role)) return next(new HttpError(403, "Esta cuenta no tiene el rol requerido.", "role_required"));
     next();
   };
 }

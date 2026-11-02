@@ -1,9 +1,24 @@
 import { Router } from "express";
 import { pool, withTransaction } from "../db.ts";
 import { HttpError, positiveMoney, text } from "../http.ts";
-import { requireRole, requireUser, requireVerified } from "../middleware/auth.ts";
+import { requireAnyRole, requireRole, requireUser, requireVerified } from "../middleware/auth.ts";
 
 export const marketplaceRouter = Router();
+
+marketplaceRouter.post("/reports", requireUser, requireVerified, async (request, response, next) => {
+  try {
+    const targetType = request.body.targetType;
+    if (!(targetType === "user" || targetType === "project")) throw new HttpError(400, "Tipo de reporte inválido.");
+    const targetId = text(request.body.targetId, 36);
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(targetId)) throw new HttpError(400, "Objetivo inválido.");
+    const reason = text(request.body.reason, 1_000);
+    if (reason.length < 10) throw new HttpError(400, "Describe el motivo con al menos 10 caracteres.");
+    const duplicate = await pool.query(`SELECT 1 FROM moderation_reports WHERE reporter_user_id = $1 AND target_type = $2 AND target_id = $3 AND status = 'open'`, [request.user!.id, targetType, targetId]);
+    if (duplicate.rowCount) throw new HttpError(409, "Ya existe un reporte pendiente sobre este elemento.", "report_exists");
+    const result = await pool.query(`INSERT INTO moderation_reports (reporter_user_id, target_type, target_id, reason) VALUES ($1, $2, $3, $4) RETURNING id, status`, [request.user!.id, targetType, targetId, reason]);
+    response.status(201).json(result.rows[0]);
+  } catch (error) { next(error); }
+});
 
 marketplaceRouter.get("/account/overview", requireUser, async (request, response, next) => {
   try {
@@ -17,7 +32,7 @@ marketplaceRouter.get("/account/overview", requireUser, async (request, response
       );
       return response.json({ role: "client", verificationStatus: request.user!.verificationStatus, projects: projects.rows });
     }
-    if (request.user!.role === "company") {
+    if (request.user!.role === "company" || request.user!.role === "professional") {
       const quotes = await pool.query(
         `SELECT q.id, q.project_id, q.amount, q.duration_days, q.scope, q.status, q.created_at,
                 p.title AS project_title, p.commune, p.status AS project_status
@@ -25,7 +40,7 @@ marketplaceRouter.get("/account/overview", requireUser, async (request, response
           WHERE q.company_user_id = $1 ORDER BY q.created_at DESC`,
         [request.user!.id],
       );
-      return response.json({ role: "company", verificationStatus: request.user!.verificationStatus, quotes: quotes.rows });
+      return response.json({ role: request.user!.role, verificationStatus: request.user!.verificationStatus, quotes: quotes.rows });
     }
     response.json({ role: request.user!.role, verificationStatus: request.user!.verificationStatus });
   } catch (error) { next(error); }
@@ -71,8 +86,8 @@ marketplaceRouter.get("/projects", async (_request, response, next) => {
 marketplaceRouter.get("/companies", async (_request, response, next) => {
   try {
     const result = await pool.query(
-      `SELECT id, display_name, created_at FROM users
-        WHERE role = 'company' AND verification_status = 'verified' AND email_verified_at IS NOT NULL
+      `SELECT id, display_name, role, created_at FROM users
+        WHERE role IN ('company', 'professional') AND verification_status = 'verified'
         ORDER BY created_at DESC LIMIT 50`,
     );
     response.json(result.rows);
@@ -84,12 +99,14 @@ marketplaceRouter.post("/projects", requireUser, requireRole("client"), requireV
     const budgetMin = positiveMoney(request.body.budgetMin);
     const budgetMax = positiveMoney(request.body.budgetMax);
     if (budgetMax < budgetMin) throw new HttpError(400, "El presupuesto máximo no puede ser menor al mínimo.", "invalid_budget_range");
+    const description = text(request.body.description, 4_000);
+    const hasContactRisk = /https?:\/\/|www\.|[\w.+-]+@[\w.-]+\.[a-z]{2,}|(?:\+?56\s?)?(?:9\s?)?\d{4}[\s-]?\d{4}/i.test(description);
     const uploadKeys = Array.isArray(request.body.uploadKeys) ? request.body.uploadKeys.slice(0, 5).filter((key: unknown) => typeof key === "string" && key.length <= 200) : [];
     const project = await withTransaction(async client => {
       const result = await client.query(
         `INSERT INTO projects (client_id, title, description, category, commune, budget_min, budget_max)
          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [request.user!.id, text(request.body.title, 160), text(request.body.description, 4_000), text(request.body.category, 80), text(request.body.commune, 100), budgetMin, budgetMax],
+        [request.user!.id, text(request.body.title, 160), description, text(request.body.category, 80), text(request.body.commune, 100), budgetMin, budgetMax],
       );
       if (uploadKeys.length) {
         const linked = await client.query(
@@ -100,13 +117,20 @@ marketplaceRouter.post("/projects", requireUser, requireRole("client"), requireV
         );
         if (linked.rowCount !== uploadKeys.length) throw new HttpError(400, "Uno o más archivos no son válidos.", "invalid_upload");
       }
+      if (hasContactRisk) {
+        await client.query(
+          `INSERT INTO moderation_reports (reporter_user_id, target_type, target_id, reason)
+           VALUES ($1, 'project', $2, 'Alerta automática: la descripción podría contener datos de contacto o enlaces externos.')`,
+          [request.user!.id, result.rows[0].id],
+        );
+      }
       return result.rows[0];
     });
     response.status(201).json(project);
   } catch (error) { next(error); }
 });
 
-marketplaceRouter.post("/projects/:projectId/quotes", requireUser, requireRole("company"), requireVerified, async (request, response, next) => {
+marketplaceRouter.post("/projects/:projectId/quotes", requireUser, requireAnyRole("company", "professional"), requireVerified, async (request, response, next) => {
   try {
     const durationDays = Number(request.body.durationDays);
     if (!Number.isInteger(durationDays) || durationDays < 1 || durationDays > 3650) throw new HttpError(400, "Duración inválida.", "invalid_duration");

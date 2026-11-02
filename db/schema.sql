@@ -1,6 +1,6 @@
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-CREATE TYPE account_role AS ENUM ('client', 'company', 'admin');
+CREATE TYPE account_role AS ENUM ('client', 'company', 'professional', 'admin');
 CREATE TYPE verification_status AS ENUM ('pending', 'verified', 'rejected', 'suspended');
 CREATE TYPE project_status AS ENUM ('open', 'contracted', 'closed', 'completed', 'suspended');
 CREATE TYPE quote_status AS ENUM ('submitted', 'accepted', 'rejected', 'withdrawn');
@@ -8,20 +8,23 @@ CREATE TYPE quote_status AS ENUM ('submitted', 'accepted', 'rejected', 'withdraw
 CREATE TABLE users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   email text NOT NULL,
+  username text NOT NULL,
   display_name text NOT NULL,
   role account_role NOT NULL,
   password_hash text NOT NULL,
   verification_status verification_status NOT NULL DEFAULT 'pending',
-  email_verified_at timestamptz,
+  moderation_previous_status verification_status,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX users_email_lower_idx ON users (lower(email));
+CREATE UNIQUE INDEX users_username_lower_idx ON users (lower(username));
 
 CREATE TABLE verification_requests (
   user_id uuid PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
   legal_name text NOT NULL,
   document_reference text NOT NULL,
+  registration_reference text,
   status verification_status NOT NULL DEFAULT 'pending',
   submitted_at timestamptz NOT NULL DEFAULT now(),
   reviewed_at timestamptz,
@@ -49,17 +52,6 @@ CREATE TABLE login_failures (
 );
 CREATE INDEX login_failures_limits_idx ON login_failures(ip, occurred_at DESC);
 
-CREATE TABLE auth_tokens (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  purpose text NOT NULL CHECK (purpose IN ('verify_email', 'reset_password')),
-  token_hash char(64) NOT NULL UNIQUE,
-  expires_at timestamptz NOT NULL,
-  used_at timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now()
-);
-CREATE INDEX auth_tokens_active_idx ON auth_tokens(user_id, purpose, expires_at DESC) WHERE used_at IS NULL;
-
 CREATE TABLE projects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   client_id uuid NOT NULL REFERENCES users(id),
@@ -70,6 +62,7 @@ CREATE TABLE projects (
   budget_min bigint NOT NULL CHECK (budget_min > 0),
   budget_max bigint NOT NULL CHECK (budget_max >= budget_min),
   status project_status NOT NULL DEFAULT 'open',
+  moderation_previous_status project_status,
   contracted_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now()
 );
@@ -125,5 +118,19 @@ CREATE TABLE project_uploads (
   upload_id uuid NOT NULL REFERENCES uploads(id) ON DELETE CASCADE,
   PRIMARY KEY (project_id, upload_id)
 );
+
+CREATE TABLE moderation_reports (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  reporter_user_id uuid NOT NULL REFERENCES users(id),
+  target_type text NOT NULL CHECK (target_type IN ('user', 'project')),
+  target_id uuid NOT NULL,
+  reason text NOT NULL CHECK (char_length(reason) BETWEEN 10 AND 1000),
+  status text NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'resolved', 'dismissed')),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  resolved_at timestamptz,
+  resolved_by uuid REFERENCES users(id),
+  resolution_reason text
+);
+CREATE INDEX moderation_reports_open_idx ON moderation_reports(created_at) WHERE status = 'open';
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;

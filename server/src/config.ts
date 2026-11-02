@@ -12,8 +12,6 @@ export const config = Object.freeze({
   databaseSsl: process.env.DATABASE_SSL ?? "require",
   sessionDays: Number(process.env.SESSION_DAYS ?? 7),
   trustProxy: Number(process.env.TRUST_PROXY ?? 0),
-  resendApiKey: process.env.RESEND_API_KEY ?? "",
-  emailFrom: process.env.EMAIL_FROM ?? "ConstruMatch <onboarding@resend.dev>",
 });
 
 export const isProduction = config.environment === "production";

@@ -4,7 +4,7 @@ import { pool } from "./db.ts";
 
 const migrations = [
   ["001_initial", "../../db/schema.sql"],
-  ["002_email_auth", "../../db/002_email_auth.sql"],
+  ["002_accounts_and_moderation", "../../db/002_accounts_and_moderation.sql"],
   ["003_project_uploads", "../../db/003_project_uploads.sql"],
 ] as const;
 

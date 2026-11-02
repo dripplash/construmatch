@@ -27,7 +27,7 @@
       <form class="login-card" id="adminLoginForm">
         <div class="card-index">01 / ACCESO</div>
         <h2>Ingresar al panel</h2>
-        <label>Correo administrativo<input required type="email" name="email" autocomplete="email" placeholder="nombre@correo.cl"></label>
+        <label>Usuario o correo administrativo<input required name="identifier" autocomplete="username" placeholder="usuario o correo"></label>
         <label>Contraseña<input required type="password" name="password" autocomplete="current-password" placeholder="••••••••••••"></label>
         <button class="admin-primary" type="submit">Ingresar de forma segura <span>↗</span></button>
         <small>La sesión se almacena en una cookie segura y no es accesible desde JavaScript.</small>
@@ -42,6 +42,7 @@
         </div>
         <div class="dashboard-actions">
           <button class="admin-secondary" id="securityButton" type="button">Seguridad</button>
+          <button class="admin-secondary" id="moderationButton" type="button">Moderación</button>
           <button class="admin-secondary" id="refreshButton" type="button">Actualizar</button>
           <button class="admin-quiet" id="logoutButton" type="button">Cerrar sesión</button>
         </div>
@@ -55,6 +56,7 @@
 
       <div class="list-heading"><span>Cola de revisión</span><span id="lastUpdated">Sin actualizar</span></div>
       <div id="verificationList" class="verification-list"><div class="loading-state"><span></span><p>Cargando solicitudes…</p></div></div>
+      <section id="moderationPanel" hidden><div class="list-heading"><span>Control de cuentas y publicaciones</span><span>Motivo obligatorio</span></div><div id="moderationList" class="verification-list"></div></section>
     </section>
   </main>
 
