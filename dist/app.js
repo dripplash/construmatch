@@ -20,6 +20,7 @@ document.querySelectorAll('.risk-item').forEach(item=>item.addEventListener('cli
 const projectDialog=document.querySelector('#projectDialog');
 const authDialog=document.querySelector('#authDialog');
 const verificationDialog=document.querySelector('#verificationDialog');
+const passwordDialog=document.querySelector('#passwordDialog');
 const supportsDialog=typeof HTMLDialogElement!=='undefined'&&typeof projectDialog.showModal==='function';
 const openModal=element=>supportsDialog?element.showModal():element.classList.add('fallback-open');
 const closeModal=element=>supportsDialog?element.close():element.classList.remove('fallback-open');
@@ -89,6 +90,7 @@ document.querySelectorAll('[data-role-choice]').forEach(button=>button.addEventL
 authDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(authDialog));
 projectDialog.querySelector('.dialog-close').addEventListener('click',event=>{event.preventDefault();closeModal(projectDialog)});
 verificationDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(verificationDialog));
+passwordDialog.querySelector('.dialog-close').addEventListener('click',()=>closeModal(passwordDialog));
 
 document.querySelectorAll('[data-open-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('client',()=>openModal(projectDialog))));
 document.querySelectorAll('[data-quote-project]').forEach(button=>button.addEventListener('click',()=>requireVerifiedRole('company',()=>openQuoteDialog(button.dataset.projectId,button.dataset.quoteProject))));
@@ -174,5 +176,7 @@ function escapeHtml(value){const element=document.createElement('span');element.
 accountStatus.addEventListener('click',()=>{if(session.role==='admin')location.href='admin.html';else if(!session.verified)openModal(verificationDialog);else showToast('Cuenta verificada','Tu ticket está activo y puedes utilizar las funciones de tu perfil.')});
 document.querySelector('#verificationForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);try{await api('/api/auth/verification',{method:'POST',body:JSON.stringify(formPayload(form))});closeModal(verificationDialog);form.reset();showToast('Solicitud enviada','Administración revisará tus antecedentes y dejará registro de la decisión.')}catch(error){showToast('No pudimos enviar la solicitud',error.message)}finally{setSubmitting(form,false)}});
 document.querySelector('#logoutButton').addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST'});setSession(null);closeModal(verificationDialog);showToast('Sesión cerrada','Tu sesión se cerró en este dispositivo.')}catch(error){showToast('No pudimos cerrar sesión',error.message)}});
+document.querySelector('#changePasswordButton').addEventListener('click',()=>{closeModal(verificationDialog);openModal(passwordDialog)});
+document.querySelector('#passwordForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);try{await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(formPayload(form))});form.reset();closeModal(passwordDialog);setSession(null);showToast('Contraseña actualizada','Cerramos todas las sesiones. Ingresa nuevamente con tu nueva contraseña.')}catch(error){showToast('No pudimos cambiarla',error.message)}finally{setSubmitting(form,false)}});
 api('/api/auth/me').then(setSession).catch(()=>setSession(null));
 loadProjects();

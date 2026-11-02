@@ -106,6 +106,34 @@ authRouter.post("/logout", requireUser, async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
+authRouter.post("/change-password", requireUser, async (request, response, next) => {
+  try {
+    const currentPassword = text(request.body.currentPassword, 200);
+    const newPassword = text(request.body.newPassword, 200);
+    if (currentPassword === newPassword) {
+      throw new HttpError(400, "La nueva contraseña debe ser distinta.", "password_unchanged");
+    }
+
+    const found = await pool.query(`SELECT password_hash FROM users WHERE id = $1`, [request.user!.id]);
+    if (!found.rows[0] || !await verifyPassword(currentPassword, found.rows[0].password_hash)) {
+      throw new HttpError(401, "La contraseña actual no es correcta.", "invalid_current_password");
+    }
+
+    const nextHash = await hashPassword(newPassword);
+    await withTransaction(async client => {
+      await client.query(`UPDATE users SET password_hash = $1, updated_at = now() WHERE id = $2`, [nextHash, request.user!.id]);
+      await client.query(`UPDATE sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [request.user!.id]);
+      await client.query(
+        `INSERT INTO audit_log (actor_user_id, action, target_type, target_id, reason)
+         VALUES ($1, 'account.password_changed', 'user', $1, 'Cambio iniciado por el titular')`,
+        [request.user!.id],
+      );
+    });
+    response.setHeader("Set-Cookie", clearSessionCookie());
+    response.status(204).end();
+  } catch (error) { next(error); }
+});
+
 authRouter.post("/verification", requireUser, async (request, response, next) => {
   try {
     const legalName = text(request.body.legalName, 180);
