@@ -2,6 +2,8 @@ import { Router } from "express";
 import { pool, withTransaction } from "../db.ts";
 import { HttpError, text } from "../http.ts";
 import { requireRole, requireUser } from "../middleware/auth.ts";
+import { sendTransactionalEmail } from "../email.ts";
+import { config } from "../config.ts";
 
 export const adminRouter = Router();
 adminRouter.use(requireUser, requireRole("admin"));
@@ -41,8 +43,23 @@ adminRouter.post("/verifications/:userId/review", async (request, response, next
          VALUES ($1, $2, 'user', $3, $4)`,
         [request.user!.id, `verification.${status}`, request.params.userId, reason],
       );
-      return { userId: request.params.userId, status };
+      const profile = await client.query(`SELECT email, display_name FROM users WHERE id = $1`, [request.params.userId]);
+      return { userId: request.params.userId, status, email: profile.rows[0]?.email, displayName: profile.rows[0]?.display_name };
     });
-    response.json(reviewed);
+    let notificationSent = false;
+    if (reviewed.email) {
+      try {
+        await sendTransactionalEmail(
+          reviewed.email,
+          status === "verified" ? "Tu cuenta de ConstruMatch fue validada" : "Actualización de tu validación en ConstruMatch",
+          status === "verified" ? "Tu ticket está activo" : "Tu solicitud necesita correcciones",
+          status === "verified" ? "Ya puedes utilizar las funciones habilitadas para tu tipo de cuenta." : `La solicitud fue rechazada por el siguiente motivo: ${reason}`,
+          "Abrir ConstruMatch",
+          `${config.appOrigin}/dashboard.html`,
+        );
+        notificationSent = true;
+      } catch (error) { console.error("Verification notification failed", error); }
+    }
+    response.json({ userId: reviewed.userId, status, notificationSent });
   } catch (error) { next(error); }
 });

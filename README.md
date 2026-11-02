@@ -26,6 +26,8 @@ No subas `.env`, respaldos, documentos de identidad ni credenciales al repositor
 
 ## GitHub y Cloudflare
 
-El repositorio incluye CI y un despliegue del frontend mediante Cloudflare Workers Static Assets. Para activarlo, crea un repositorio en GitHub y configura los secretos `CLOUDFLARE_API_TOKEN` y `CLOUDFLARE_ACCOUNT_ID`; el workflow publica `dist/` al actualizar `main`.
+El frontend se publica mediante Cloudflare Workers Static Assets usando `wrangler deploy`. El despliegue automático de GitHub está deshabilitado para evitar ejecuciones duplicadas sin credenciales.
 
 La API Express no debe desplegarse como un sitio estático. Debe ejecutarse en un servicio Node.js con acceso privado a PostgreSQL 17. Configura `APP_ORIGIN` con la URL pública de Cloudflare y mantén `DATABASE_URL` solamente en el gestor de secretos del servicio.
+
+Los correos transaccionales usan la API HTTP de Resend sin añadir dependencias de ejecución. Configura `RESEND_API_KEY` y un remitente verificado en `EMAIL_FROM` antes de habilitar el registro público.

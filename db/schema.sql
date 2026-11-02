@@ -12,6 +12,7 @@ CREATE TABLE users (
   role account_role NOT NULL,
   password_hash text NOT NULL,
   verification_status verification_status NOT NULL DEFAULT 'pending',
+  email_verified_at timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -47,6 +48,17 @@ CREATE TABLE login_failures (
   occurred_at timestamptz NOT NULL DEFAULT now()
 );
 CREATE INDEX login_failures_limits_idx ON login_failures(ip, occurred_at DESC);
+
+CREATE TABLE auth_tokens (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose text NOT NULL CHECK (purpose IN ('verify_email', 'reset_password')),
+  token_hash char(64) NOT NULL UNIQUE,
+  expires_at timestamptz NOT NULL,
+  used_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX auth_tokens_active_idx ON auth_tokens(user_id, purpose, expires_at DESC) WHERE used_at IS NULL;
 
 CREATE TABLE projects (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -106,6 +118,12 @@ CREATE TABLE audit_log (
   target_id uuid,
   reason text,
   created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE project_uploads (
+  project_id uuid NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  upload_id uuid NOT NULL REFERENCES uploads(id) ON DELETE CASCADE,
+  PRIMARY KEY (project_id, upload_id)
 );
 
 REVOKE ALL ON ALL TABLES IN SCHEMA public FROM PUBLIC;

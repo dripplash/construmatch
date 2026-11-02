@@ -8,8 +8,8 @@ export async function bootstrapAdmin(): Promise<void> {
   const found = await pool.query("SELECT id FROM users WHERE lower(email) = $1", [email]);
   if (found.rowCount) return;
   await pool.query(
-    `INSERT INTO users (email, display_name, role, password_hash, verification_status)
-     VALUES ($1, 'Administración ConstruMatch', 'admin', $2, 'verified')`,
+    `INSERT INTO users (email, display_name, role, password_hash, verification_status, email_verified_at)
+     VALUES ($1, 'Administración ConstruMatch', 'admin', $2, 'verified', now())`,
     [email, await hashPassword(password)],
   );
 }

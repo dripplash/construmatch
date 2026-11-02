@@ -1,12 +1,13 @@
 import { promisify } from "node:util";
 import { randomBytes, scrypt, timingSafeEqual } from "node:crypto";
+import { HttpError } from "../http.ts";
 
 const scryptAsync = promisify(scrypt);
 const params = { N: 2 ** 17, r: 8, p: 1, maxmem: 256 * 1024 * 1024 };
 const keyLength = 64;
 
 export async function hashPassword(password: string): Promise<string> {
-  if (password.length < 12 || password.length > 200) throw new Error("Password length rejected");
+  if (password.length < 12 || password.length > 200) throw new HttpError(400, "La contraseña debe tener entre 12 y 200 caracteres.", "invalid_password");
   const salt = randomBytes(16);
   const derived = await scryptAsync(password, salt, keyLength, params) as Buffer;
   return ["scrypt", params.N, params.r, params.p, salt.toString("base64url"), derived.toString("base64url")].join("$");

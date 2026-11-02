@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { pool } from "./db.ts";
 
-const version = "001_initial";
+const migrations = [
+  ["001_initial", "../../db/schema.sql"],
+  ["002_email_auth", "../../db/002_email_auth.sql"],
+  ["003_project_uploads", "../../db/003_project_uploads.sql"],
+] as const;
 
 export async function migrateDatabase(): Promise<void> {
   const client = await pool.connect();
@@ -13,11 +17,13 @@ export async function migrateDatabase(): Promise<void> {
       version text PRIMARY KEY,
       applied_at timestamptz NOT NULL DEFAULT now()
     )`);
-    const applied = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [version]);
-    if (applied.rowCount === 0) {
-      const schemaPath = fileURLToPath(new URL("../../db/schema.sql", import.meta.url));
-      await client.query(await readFile(schemaPath, "utf8"));
-      await client.query("INSERT INTO schema_migrations(version) VALUES ($1)", [version]);
+    for (const [version, relativePath] of migrations) {
+      const applied = await client.query("SELECT 1 FROM schema_migrations WHERE version = $1", [version]);
+      if (applied.rowCount === 0) {
+        const schemaPath = fileURLToPath(new URL(relativePath, import.meta.url));
+        await client.query(await readFile(schemaPath, "utf8"));
+        await client.query("INSERT INTO schema_migrations(version) VALUES ($1)", [version]);
+      }
     }
     await client.query("COMMIT");
   } catch (error) {
