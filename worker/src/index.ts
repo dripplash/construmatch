@@ -23,11 +23,22 @@ export default {
     headers.set("X-Forwarded-Host", url.host);
     headers.set("X-Forwarded-Proto", "https");
 
-    return fetch(upstream, {
+    const upstreamResponse = await fetch(upstream, {
       method: request.method,
       headers,
       body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
       redirect: "manual",
     });
+    const contentType = upstreamResponse.headers.get("content-type") ?? "";
+    if (upstreamResponse.status === 429 || upstreamResponse.status === 503 || contentType.includes("text/html")) {
+      return Response.json({
+        error: "upstream_waking",
+        message: "El servidor se está iniciando. Intenta nuevamente en un minuto.",
+      }, {
+        status: 503,
+        headers: { "Cache-Control": "no-store", "Retry-After": "60" },
+      });
+    }
+    return upstreamResponse;
   },
 };

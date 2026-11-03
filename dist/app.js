@@ -3,7 +3,7 @@ const loaderMessage=document.querySelector('#loaderMessage');
 const loaderPercent=document.querySelector('#loaderPercent');
 const messages=['Trazando la estructura','Levantando los módulos','Asegurando las conexiones','Proyecto listo'];
 let progress=0;
-const loadTimer=setInterval(()=>{progress=Math.min(100,progress+Math.ceil(Math.random()*13));loaderPercent.textContent=`${progress}%`;loaderMessage.textContent=messages[Math.min(3,Math.floor(progress/28))];if(progress>=100){clearInterval(loadTimer);setTimeout(()=>loader.classList.add('done'),250)}},120);
+const loadTimer=setInterval(()=>{progress=Math.min(100,progress+Math.ceil(Math.random()*13));loaderPercent.textContent=`${progress}%`;const message=messages[Math.min(3,Math.floor(progress/28))];loaderMessage.textContent=window.ConstruMatchI18n?.t(message)||message;if(progress>=100){clearInterval(loadTimer);setTimeout(()=>loader.classList.add('done'),250)}},120);
 
 const observer=new IntersectionObserver(entries=>{entries.forEach(entry=>{if(entry.isIntersecting){const delay=Number(entry.target.dataset.delay||0);setTimeout(()=>entry.target.classList.add('visible'),delay);observer.unobserve(entry.target)}})},{threshold:.12});
 document.querySelectorAll('.reveal').forEach(el=>observer.observe(el));
@@ -203,6 +203,14 @@ function openAccountArea(){
   }
   location.href='dashboard.html';
 }
+function openRequestedAction(){
+  const params=new URLSearchParams(location.search);
+  if(params.get('publish')!=='1')return;
+  params.delete('publish');
+  const query=params.toString();
+  history.replaceState(null,'',`${location.pathname}${query?`?${query}`:''}${location.hash}`);
+  requireVerifiedRole('client',()=>openModal(projectDialog));
+}
 accountStatus.addEventListener('click',openAccountArea);
 document.querySelector('#verificationForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);try{await api('/api/auth/verification',{method:'POST',body:JSON.stringify(formPayload(form))});closeModal(verificationDialog);form.reset();showToast('Solicitud enviada','Administración revisará tus antecedentes y dejará registro de la decisión.')}catch(error){showToast('No pudimos enviar la solicitud',error.message)}finally{setSubmitting(form,false)}});
 document.querySelector('#logoutButton').addEventListener('click',async()=>{try{await api('/api/auth/logout',{method:'POST'});setSession(null);closeModal(verificationDialog);showToast('Sesión cerrada','Tu sesión se cerró en este dispositivo.')}catch(error){showToast('No pudimos cerrar sesión',error.message)}});
@@ -210,6 +218,6 @@ document.querySelector('#changePasswordButton').addEventListener('click',()=>{cl
 document.querySelector('#passwordForm').addEventListener('submit',async event=>{event.preventDefault();const form=event.currentTarget;if(!form.checkValidity())return form.reportValidity();setSubmitting(form,true);try{await api('/api/auth/change-password',{method:'POST',body:JSON.stringify(formPayload(form))});form.reset();closeModal(passwordDialog);setSession(null);showToast('Contraseña actualizada','Cerramos todas las sesiones. Ingresa nuevamente con tu nueva contraseña.')}catch(error){showToast('No pudimos cambiarla',error.message)}finally{setSubmitting(form,false)}});
 function passwordScore(value){return [value.length>=12,/[A-Za-z]/.test(value),/\d/.test(value),/[^A-Za-z0-9]/.test(value),value.length>=16].filter(Boolean).length}
 document.querySelectorAll('input[autocomplete="new-password"]').forEach(input=>input.addEventListener('input',()=>{const meter=input.parentElement.querySelector('.password-strength i');if(!meter)return;const score=passwordScore(input.value);meter.style.width=`${score*20}%`;meter.dataset.score=String(score)}));
-api('/api/auth/me').then(setSession).catch(()=>setSession(null));
+api('/api/auth/me').then(user=>{setSession(user);openRequestedAction()}).catch(()=>{setSession(null);openRequestedAction()});
 loadProjects();
 loadCompanies();
