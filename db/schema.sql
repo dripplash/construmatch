@@ -96,10 +96,11 @@ CREATE TABLE uploads (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES users(id),
   storage_key text NOT NULL UNIQUE,
-  mime_type text NOT NULL CHECK (mime_type IN ('image/jpeg', 'image/png', 'image/webp')),
-  size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 5242880),
+  mime_type text NOT NULL CHECK (mime_type IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'model/gltf-binary')),
+  size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 15728640),
   checksum char(64) NOT NULL,
   data bytea NOT NULL,
+  original_name text NOT NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
 

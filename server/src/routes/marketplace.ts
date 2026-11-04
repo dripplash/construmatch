@@ -5,6 +5,22 @@ import { requireAnyRole, requireRole, requireUser, requireVerified } from "../mi
 
 export const marketplaceRouter = Router();
 
+async function assertProjectAssetAccess(projectId: string, user: NonNullable<Express.Request["user"]>): Promise<void> {
+  const access = await pool.query(
+    `SELECT 1 FROM projects p
+      WHERE p.id = $1 AND (
+        p.client_id = $2
+        OR ($3 = ANY(ARRAY['company','professional']::text[]) AND (
+          p.status = 'open' OR EXISTS (
+            SELECT 1 FROM quotes q WHERE q.project_id = p.id AND q.company_user_id = $2
+          )
+        ))
+      )`,
+    [projectId, user.id, user.role],
+  );
+  if (!access.rowCount) throw new HttpError(404, "Proyecto no encontrado.", "not_found");
+}
+
 marketplaceRouter.post("/reports", requireUser, requireVerified, async (request, response, next) => {
   try {
     const targetType = request.body.targetType;
@@ -70,6 +86,65 @@ marketplaceRouter.get("/projects/:projectId/messages", requireUser, requireVerif
       [request.params.projectId, request.user!.id],
     );
     response.json(result.rows);
+  } catch (error) { next(error); }
+});
+
+marketplaceRouter.get("/projects/:projectId/assets", requireUser, requireVerified, async (request, response, next) => {
+  try {
+    await assertProjectAssetAccess(request.params.projectId, request.user!);
+    const result = await pool.query(
+      `SELECT up.id, up.original_name, up.mime_type, up.size_bytes, up.created_at
+         FROM project_uploads pu JOIN uploads up ON up.id = pu.upload_id
+        WHERE pu.project_id = $1 ORDER BY up.created_at ASC`,
+      [request.params.projectId],
+    );
+    response.json(result.rows);
+  } catch (error) { next(error); }
+});
+
+marketplaceRouter.get("/projects/:projectId/assets/:uploadId", requireUser, requireVerified, async (request, response, next) => {
+  try {
+    await assertProjectAssetAccess(request.params.projectId, request.user!);
+    const result = await pool.query(
+      `SELECT up.original_name, up.mime_type, up.size_bytes, up.checksum, up.data
+         FROM project_uploads pu JOIN uploads up ON up.id = pu.upload_id
+        WHERE pu.project_id = $1 AND up.id = $2`,
+      [request.params.projectId, request.params.uploadId],
+    );
+    const asset = result.rows[0];
+    if (!asset) throw new HttpError(404, "Archivo no encontrado.", "not_found");
+    const asciiName = String(asset.original_name).replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 120) || "archivo";
+    response.setHeader("Content-Type", asset.mime_type);
+    response.setHeader("Content-Length", asset.size_bytes);
+    response.setHeader("Content-Disposition", `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(asset.original_name)}`);
+    response.setHeader("X-Content-Type-Options", "nosniff");
+    response.setHeader("Content-Security-Policy", "sandbox");
+    response.setHeader("Cache-Control", "private, no-store");
+    response.send(asset.data);
+  } catch (error) { next(error); }
+});
+
+marketplaceRouter.post("/projects/:projectId/assets", requireUser, requireRole("client"), requireVerified, async (request, response, next) => {
+  try {
+    const uploadId = text(request.body.uploadId, 36);
+    const linkedId = await withTransaction(async client => {
+      const project = await client.query(
+        `SELECT id FROM projects WHERE id = $1 AND client_id = $2 AND status IN ('open', 'contracted') FOR UPDATE`,
+        [request.params.projectId, request.user!.id],
+      );
+      if (!project.rowCount) throw new HttpError(404, "Proyecto no encontrado.", "not_found");
+      const count = await client.query(`SELECT count(*)::int AS total FROM project_uploads WHERE project_id = $1`, [request.params.projectId]);
+      if (count.rows[0].total >= 10) throw new HttpError(409, "Este proyecto ya alcanzó el máximo de 10 archivos.", "asset_limit");
+      const linked = await client.query(
+        `INSERT INTO project_uploads (project_id, upload_id)
+         SELECT $1, id FROM uploads WHERE id = $3 AND user_id = $2
+         ON CONFLICT DO NOTHING RETURNING upload_id`,
+        [request.params.projectId, request.user!.id, uploadId],
+      );
+      if (!linked.rowCount) throw new HttpError(400, "No fue posible agregar el archivo a este proyecto.", "invalid_upload");
+      return linked.rows[0].upload_id;
+    });
+    response.status(201).json({ id: linkedId });
   } catch (error) { next(error); }
 });
 
