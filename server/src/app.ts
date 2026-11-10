@@ -24,7 +24,11 @@ app.use(express.json({ limit: "256kb", strict: true }));
 app.get("/health", async (_request, response, next) => {
   try {
     await pool.query("SELECT 1");
-    response.json({ status: "ok" });
+    response.json({
+      status: "ok",
+      commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? "local",
+      features: ["provider_profiles", "secure_uploads", "project_assets"],
+    });
   } catch (error) { next(error); }
 });
 app.use("/api/auth", authRouter);
